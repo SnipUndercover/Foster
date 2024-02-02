@@ -99,13 +99,25 @@ public static class VectorExt
 	public static float Angle(this Vector2 vector) => MathF.Atan2(vector.Y, vector.X);
 
 	/// <summary>
+	/// Whether to fallback to manual normalization.<br />
+	/// A .NET runtime bug causes the JIT to emit wrong assembly on CPUs not supporting <a href="https://en.wikipedia.org/wiki/Advanced_Vector_Extensions">AVX</a>
+	/// when calling <see cref="Vector2.Normalize(Vector2)"/>, making the calculation result incorrect.<br />
+	/// <i>(For example, on an AMD Phenom II X4 955, this causes the normalized vector's Y component to be +/- Infinity.)</i>
+	/// </summary>
+	private static readonly Lazy<bool> NeedsManualNormalize = new(() =>
+	{
+		var normalized = Vector2.Normalize(new(1, 1));
+		return !float.IsFinite(normalized.X) || !float.IsFinite(normalized.Y);
+	});
+
+	/// <summary>
 	/// Normalizes a Vector2 safely (a zero-length Vector2 returns 0)
 	/// </summary>
 	public static Vector2 Normalized(this Vector2 vector)
 	{
 		if (vector.X == 0 && vector.Y == 0)
 			return Vector2.Zero;
-		return Vector2.Normalize(vector);
+		return !NeedsManualNormalize.Value ? Vector2.Normalize(vector) : vector.ManualNormalize();
 	}
 
 	/// <summary>
@@ -115,7 +127,25 @@ public static class VectorExt
 	{
 		if (vector.X == 0 && vector.Y == 0 && vector.Z == 0)
 			return Vector3.Zero;
-		return Vector3.Normalize(vector);
+		return !NeedsManualNormalize.Value ? Vector3.Normalize(vector) : vector.ManualNormalize();
+	}
+
+	/// <summary>
+	/// Manually normalizes a <see cref="Vector2"/>.
+	/// </summary>
+	public static Vector2 ManualNormalize(this in Vector2 vector)
+	{
+		float length = vector.Length();
+		return new(vector.X / length, vector.Y / length);
+	}
+
+	/// <summary>
+	/// Manually normalizes a <see cref="Vector3"/>.
+	/// </summary>
+	public static Vector3 ManualNormalize(this in Vector3 vector)
+	{
+		float length = vector.Length();
+		return new(vector.X / length, vector.Y / length, vector.Z / length);
 	}
 
 	/// <summary>
