@@ -387,12 +387,19 @@ typedef enum FosterIndexFormat
 	FOSTER_INDEX_FORMAT_THIRTY_TWO
 } FosterIndexFormat;
 
-typedef enum FosterLogging
+typedef enum FosterLogLevel
 {
-	FOSTER_LOGGING_DEFAULT,
-	FOSTER_LOGGING_ALL,
-	FOSTER_LOGGING_NONE
-} FosterLogging;
+	FOSTER_LOG_LEVEL_INFO,
+	FOSTER_LOG_LEVEL_WARNING,
+	FOSTER_LOG_LEVEL_ERROR
+} FosterLogLevel;
+
+typedef enum FosterLogFilter
+{
+	FOSTER_LOG_FILTER_DEFAULT,
+	FOSTER_LOG_FILTER_VERBOSE,
+	FOSTER_LOG_FILTER_IGNORE_ALL
+} FosterLogFilter;
 
 typedef enum FosterImageWriteFormat
 {
@@ -400,17 +407,22 @@ typedef enum FosterImageWriteFormat
 	FOSTER_IMAGE_WRITE_FORMAT_QOI,
 } FosterImageWriteFormat;
 
-typedef void (FOSTER_CALL * FosterLogFn)(const char *msg);
-typedef void (FOSTER_CALL * FosterExitRequestFn)();
-typedef void (FOSTER_CALL * FosterOnTextFn)(const char* txt);
-typedef void (FOSTER_CALL * FosterOnKeyFn)(int key, FosterBool pressed);
-typedef void (FOSTER_CALL * FosterOnMouseButtonFn)(int button, FosterBool pressed);
-typedef void (FOSTER_CALL * FosterOnMouseMoveFn)(float posX, float posY);
-typedef void (FOSTER_CALL * FosterOnMouseWheelFn)(float offsetX, float offsetY);
-typedef void (FOSTER_CALL * FosterOnControllerConnectFn)(int index, const char* name, int buttonCount, int axisCount, FosterBool isGamepad, uint16_t vendor, uint16_t product, uint16_t version);
-typedef void (FOSTER_CALL * FosterOnControllerDisconnectFn)(int index);
-typedef void (FOSTER_CALL * FosterOnControllerButtonFn)(int index, int button, FosterBool pressed);
-typedef void (FOSTER_CALL * FosterOnControllerAxisFn)(int index, int axis, float value);
+typedef enum FosterEventType
+{
+	FOSTER_EVENT_TYPE_NONE,
+	FOSTER_EVENT_TYPE_EXIT_REQUESTED,
+	FOSTER_EVENT_TYPE_KEYBOARD_INPUT,
+	FOSTER_EVENT_TYPE_KEYBOARD_KEY,
+	FOSTER_EVENT_TYPE_MOUSE_BUTTON,
+	FOSTER_EVENT_TYPE_MOUSE_MOVE,
+	FOSTER_EVENT_TYPE_MOUSE_WHEEL,
+	FOSTER_EVENT_TYPE_CONTROLLER_CONNECT,
+	FOSTER_EVENT_TYPE_CONTROLLER_DISCONNECT,
+	FOSTER_EVENT_TYPE_CONTROLLER_BUTTON,
+	FOSTER_EVENT_TYPE_CONTROLLER_AXIS,
+} FosterEventType;
+
+typedef void (FOSTER_CALL * FosterLogFn)(const char *msg, FosterLogLevel level);
 typedef void (FOSTER_CALL * FosterWriteFn)(void *context, void *data, int size);
 
 typedef struct FosterTexture FosterTexture; 
@@ -426,17 +438,47 @@ typedef struct FosterDesc
 	int height;
 	FosterRenderers renderer;
 	FosterFlags flags;
-	FosterExitRequestFn onExitRequest;
-	FosterOnTextFn onText;
-	FosterOnKeyFn onKey;
-	FosterOnMouseButtonFn onMouseButton;
-	FosterOnMouseMoveFn onMouseMove;
-	FosterOnMouseWheelFn onMouseWheel;
-	FosterOnControllerConnectFn onControllerConnect;
-	FosterOnControllerDisconnectFn onControllerDisconnect;
-	FosterOnControllerButtonFn onControllerButton;
-	FosterOnControllerAxisFn onControllerAxis;
 } FosterDesc;
+
+typedef union FosterEvent
+{
+	int eventType;
+
+	struct
+	{
+		int eventType;
+		char text[32]; // intentionally the same size as SDL_TEXTINPUTEVENT_TEXT_SIZE
+		int key;
+		FosterBool keyPressed;
+	} keyboard;
+
+	struct
+	{
+		int eventType;
+		float x;
+		float y;
+		int button;
+		FosterBool buttonPressed;
+	} mouse;
+
+	struct
+	{
+		int eventType;
+		int index;
+		const char* name;
+		int buttonCount;
+		int axisCount;
+		FosterBool isGamepad;
+		uint16_t vendor;
+		uint16_t product;
+		uint16_t version;
+		int button;
+		FosterBool buttonPressed;
+		int axis;
+		float axisValue;
+	} controller;
+
+} FosterEvent;
 
 typedef struct FosterRect
 {
@@ -531,11 +573,11 @@ extern "C" {
 
 FOSTER_API void FosterStartup(FosterDesc desc);
 
-FOSTER_API void FosterRegisterLogMethods(FosterLogFn logInfo, FosterLogFn logWarn, FosterLogFn logErr, FosterLogging level);
+FOSTER_API void FosterSetLogCallback(FosterLogFn logFn, FosterLogFilter filter);
 
 FOSTER_API void FosterBeginFrame();
 
-FOSTER_API void FosterPollEvents();
+FOSTER_API FosterBool FosterPollEvents(FosterEvent* ev);
 
 FOSTER_API void FosterEndFrame();
 
